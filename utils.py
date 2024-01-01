@@ -7,14 +7,40 @@ import glasbey
 from kneed import KneeLocator
 
 # --- plotting utils -------------------------------------------------------------------- #
-def plot_embedding(embedding, save_as=None):
-    """ Plot a 3D embedding. """
+def plot_embedding(embedding, color_label=None, alpha=0.08, size=2, save_as=None):
+    """ Plot a 2d or 3d embedding. (It can be a pandas.DataFrame or a numpy.array.) """
+    # determine x, y, z, data and colour
+    if isinstance(embedding, pd.DataFrame):
+        x = embedding["e0"]
+        y = embedding["e1"]
+        z = embedding["e2"] if "e2" in embedding.columns else None
+        c = embedding[color_label] if color_label is not None else None
+    else:
+        x = embedding[:, 0]
+        y = embedding[:, 1]
+        z = embedding[:, 2] if embedding.shape[1] == 3 else None
+        c = color_label 
+
+    # plot
     fig = plt.figure(figsize=(7, 6))
-    ax = fig.add_subplot(projection='3d')
-    ax.scatter(embedding[:, 0], embedding[:, 1], embedding[:, 2], alpha=0.08, s=2, marker=".")
+
+    # 3d
+    if z is not None:
+        ax = fig.add_subplot(projection='3d')
+        ax.set_zlabel("Axis 2")
+        if c is None:
+            ax.scatter(x, y, z, alpha=alpha, s=size, marker=".")
+        else:
+            ax.scatter(x, y, z, alpha=alpha, c=c, s=size, marker=".")
+    # 2d
+    else:
+        if c is None:
+            plt.scatter(x, y, alpha=alpha, s=size, marker=".")
+        else:
+            plt.scatter(x, y, alpha=alpha, c=c, s=size, marker=".")
+             
     plt.xlabel("Axis 0")
     plt.ylabel("Axis 1")
-    ax.set_zlabel("Axis 2")
     plt.tight_layout()
     if save_as:
         plt.savefig(save_as)
@@ -43,16 +69,11 @@ def coupled_label_plot(df, color_label="color", save_dir=None, suffix="", umap_p
 
     # UMAP plot
     if umap_plot:
-        fig = plt.figure(figsize=(6, 6))
-        ax = fig.add_subplot(projection='3d')
-        ax.scatter(temp["e0"], temp["e1"], temp["e2"], c=temp["color"], alpha=0.8, zorder=4, s=1) 
-        if save_dir:
-            plt.savefig(save_dir + f"labels_in_umapspace{suffix}.png")
-        plt.tight_layout()
-        plt.show()
-        
+        save_as = save_dir + f"labels_in_umapspace{suffix}.png" if save_dir is not None else None
+        plot_embedding(temp, color_label=color_label, alpha=1, save_as=save_as)
 
-def color_code_labels(df, color_noise_black=True, drop_noise=True):
+
+def color_code_labels(df, color_noise_black=False, drop_noise=False):
     """ Add a color for each label in the clustering using the Glasbey library. """
     temp = df.copy()
 
@@ -72,7 +93,7 @@ def color_code_labels(df, color_noise_black=True, drop_noise=True):
 
 
 # --- utils to remove clusters -------------------------------------------------------------------- #
-def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log number of samples", save_dir=None, suffix=""):
+def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log number of grid cells", save_dir=None, suffix=""):
     x = df.index
     y = df[y_name]
 
@@ -82,7 +103,6 @@ def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log nu
     if thresh:
         closest = df.iloc[(df[y_name]-thresh).abs().argsort()[:1]]
         knee = closest.index[0]
-        print(knee)
     elif knee:
         thresh = df.iloc[knee][y_name]
         
@@ -91,7 +111,7 @@ def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log nu
 
     plt.xlabel('Clusters')
     plt.xticks([knee])
-    plt.yticks(list(plt.yticks()[0]) + [thresh])
+    plt.text(0, thresh + thresh/100*5, thresh, color="orange")
     plt.yscale("log")
     plt.ylabel(y_label)
     
@@ -116,9 +136,11 @@ def compute_elbow_threshold(df_label_counts, y_name="count"):
 def drop_clusters_with_few_samples(df, thresh=None, plotting=True, save_dir=None, suffix=""):
     """ If thresh is None, the Kneedle algorithm will be used to determine a treshold. """
     temp = df.copy()
+    knee = None
     
     # count number of grid cells in each cluster
-    df_nums = temp.groupby("label").count()["color"].reset_index().rename(columns={"color": "count"})
+    some_column = df.columns[0]
+    df_nums = temp.groupby("label").count()[some_column].reset_index().rename(columns={some_column: "count"})
     df_nums = df_nums.sort_values("count").reset_index(drop=True)
     df_nums["label"] = df_nums["label"].astype(str)
 
@@ -131,11 +153,12 @@ def drop_clusters_with_few_samples(df, thresh=None, plotting=True, save_dir=None
         # plot number of cells per cluster
         plot_elbow_curve(df_nums, thresh=thresh, save_dir=save_dir, suffix=suffix)
 
-     # set all labels to -2  where num samples is too small
+     # set all labels to -1  where num samples is too small
     labels_to_keep = list(df_nums[df_nums["count"] >= thresh].label)
-    temp.loc[~(temp.label.astype(str).isin(labels_to_keep)), "label"] = -2
+    temp.loc[~(temp.label.astype(str).isin(labels_to_keep)), "label"] = -1
 
     # plotting
-    coupled_label_plot(df=temp, color_label="color", save_dir=save_dir, suffix=suffix, umap_plot=True)
+    # if plotting:
+        # coupled_label_plot(df=temp[temp.label!=-1], color_label=some_column, save_dir=save_dir, suffix=suffix, umap_plot=True)
     
-    return temp
+    return temp, knee, thresh
