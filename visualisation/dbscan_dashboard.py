@@ -1,4 +1,5 @@
-# work with traces for each hyperparmater combination (but more than 10 really slows down the application, more than 100 hardly possible)
+# no traces but data loading
+
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
@@ -29,16 +30,12 @@ def color_code_labels(df, label_name="label_embedding", color_noise_black=False,
     return temp
 
 
-def hide_all_traces():
-    for trace in fig_geo.data:
-        trace.visible = False
-
-    for trace in fig_umap.data:
-        trace.visible = False
-
-
 # plot settings
 scatter_size = 1.5
+
+# which clustering? on original or embedding?
+data_label = "label_embedding"
+# data_label = "label_original"
 
 # dbscan labels
 labels = pd.read_csv("../data/dbscan_labels.csv")
@@ -50,11 +47,12 @@ data = data.groupby(groupby_cols).mean().drop("iteration", axis=1).reset_index()
 data = data[(data.clustering_on == 'embedding') & (data.scores_on == 'embedding')]  # filter
 data = data.drop(['clustering_on', 'scores_on'], axis=1)
 data = data.sort_values(["eps", "min_samples"])
-data.nnoise = data.nnoise*100/49131
+data.nnoise = data.nnoise * 100 / 49131
 epss = np.sort(data.eps.unique())  # all epsilons
 min_sampless = np.sort(data.min_samples.unique())  # all min_samples
 all_combos = list(it.product(*[epss, min_sampless]))  # all combinations
-score_map = {"Silhouette": "silhouette", "Calinski-Harabasz": "calinski", "Davies-Bouldin": "davies_bouldin", "N clusters": "nclusters", "N noise": "nnoise"}
+score_map = {"Silhouette": "silhouette", "Calinski-Harabasz": "calinski", "Davies-Bouldin": "davies_bouldin",
+             "N clusters": "nclusters", "N noise": "nnoise"}
 dx = abs(min_sampless[0] - min_sampless[1])
 dy = abs(epss[0] - epss[1])
 
@@ -64,41 +62,32 @@ print("data loaded")
 cur_score = "calinski"
 field = pd.DataFrame(data[cur_score].to_numpy().reshape(len(epss), len(min_sampless)), index=epss, columns=min_sampless)
 
-# figures
+# figures and heatmaps
 fig_geo = go.Figure()
 fig_umap = go.Figure()
-for eps, min_samples in all_combos[:10]:  # [[0.01, 3], [0.2, 3]]:
-    for n in ["no_noise"]:  # ["noise", "no_noise"]:
-        labels_filtered = labels[(labels.eps == eps) & (labels.min_samples == min_samples)]
-        labels_filtered = color_code_labels(labels_filtered, label_name="label_embedding")
-
-        if n == "no_noise":
-            labels_filtered = labels_filtered[labels_filtered.label_embedding != -1]
-
-        fig_geo.add_trace(
-            go.Scatter3d(name=f"{eps}-{min_samples}-{n}-geo", x=labels_filtered.LONGITUDE, y=labels_filtered.LATITUDE, z=labels_filtered.LEV_M * -1,
-                         mode='markers', marker=dict(size=scatter_size, color=labels_filtered.color, opacity=1), visible=False)
-        )
-        fig_umap.add_trace(
-            go.Scatter3d(name=f"{eps}-{min_samples}-{n}-umap", x=labels_filtered.e0, y=labels_filtered.e1, z=labels_filtered.e2,
-                         mode='markers', marker=dict(size=scatter_size, color=labels_filtered.color, opacity=1), visible=False)
-        )
-fig_geo.data[0].visible = True
-fig_umap.data[0].visible = True
-
-# heatmaps
+fig_depth = go.Figure()
 heatmap_score = px.imshow(field, aspect="auto", width=1000, labels={"x": "min_samples", "y": "eps", "color": cur_score},
                           color_continuous_scale='gray')
-print("traces defined")
-
 # current hyperparameter values
 cur_eps = 0.01
-cur_min_samples = 3
+cur_min_samples = 2
+
+# # create 2d scatter traces for each depth step
+# for step in labels.LEV_M.unique():
+#     temp = labels[(labels.eps == cur_eps) & (labels.min_samples == cur_min_samples) & (labels.LEV_M == step)]
+#     temp = color_code_labels(temp, label_name=data_label)
+#     fig_depth.add_trace(go.Scatter(visible=False, x=temp.LONGITUDE, y=temp.LATITUDE, name=f"{step}-depth",
+#                                    mode='markers', marker=dict(size=scatter_size, color=temp.color, opacity=1)))
+# fig_depth.data[0].visible = True
+
+
+print("figures defined")
 
 # dash app and layout
 app = Dash(__name__)
 app.layout = html.Div([
-    html.Div([dcc.RadioItems(['N clusters', 'Calinski-Harabasz', 'Davies-Bouldin', 'Silhouette', 'N noise'], 'Calinski-Harabasz',
+    html.Div([dcc.RadioItems(['N clusters', 'Calinski-Harabasz', 'Davies-Bouldin', 'Silhouette', 'N noise'],
+                             'Calinski-Harabasz',
                              id='score', labelStyle={'display': 'inline-block', 'marginTop': '5px'}),
               dcc.Checklist(["Hide noise"], ["Hide noise"], id="hide-noise-check")
               ]),
@@ -108,7 +97,9 @@ app.layout = html.Div([
     html.Div(dcc.Graph(figure=fig_geo, id='fig-geo'),
              style={'margin': dict(l=20, r=20, t=20, b=20), "paper_bgcolor": "LightSteelBlue",
                     'display': 'inline-block'}),
-    html.Div(dcc.Textarea(id="textarea", value="Current parameters: "),
+    html.Div([dcc.Textarea(id="textarea", value="Current parameters: "),
+              dcc.Graph(figure=fig_depth, id="fig-depth"),
+              dcc.Slider(0, len(labels.LEV_M.unique())-1, value=0, id='depth-slider')],
              style={'margin': dict(l=20, r=20, t=20, b=20), "width": "49%",
                     "height": "49%", "resize": "none", 'display': 'inline-block'}),
     html.Div(dcc.Graph(figure=fig_umap, id='fig-umap'),
@@ -119,59 +110,90 @@ app.layout = html.Div([
 ])
 
 
+# @app.callback(
+#     Output('fig-depth', 'figure'),
+#     Input('depth-slider', 'value'),
+# )
+# def update_2d_scatterplot(depth):
+#     print("callback 2d scatter")
+#     # udpate 2d scatter plot according to slider value
+#     for trace in fig_depth.data:
+#         trace.visible = False
+#     fig_depth.update_traces(visible=True, selector={'name': f"{depth}-depth"})
+#
+#     return fig_depth
+
+
 @app.callback(
     Output('textarea', 'value'),
     Output('heatmap-score', 'figure'),
     Output('fig-geo', 'figure'),
     Output('fig-umap', 'figure'),
     Output('cur-params', 'data'),
+
     Input('score', 'value'),
-    Input('textarea', 'value'),
     Input('heatmap-score', 'clickData'),
     Input('hide-noise-check', 'value'),
-    Input('cur-params', 'data'))
-def update_heatmap(score, old_text, clickData, check_value, cur_params):
-    field = pd.DataFrame(data[score_map[score]].to_numpy().reshape(len(epss), len(min_sampless)),
-                         index=epss, columns=min_sampless)
-
-    cur_eps = cur_params["eps"]
-    cur_min_samples = cur_params["min_samples"]
+    Input('cur-params', 'data'),
+    Input('fig-geo', 'figure'),
+    Input('fig-umap', 'figure'),
+)
+def update_heatmap(score, clickData, check_value, cur_params, figure_geo, figure_umap):
+    # update heatmap
+    new_field = pd.DataFrame(data[score_map[score]].to_numpy().reshape(len(epss), len(min_sampless)),
+                             index=epss, columns=min_sampless)
+    eps = cur_params["eps"]
+    min_samples = cur_params["min_samples"]
+    score_value = new_field.loc[eps, min_samples]
 
     if clickData:
+        print(clickData)
         # get click coordinates
         x = clickData['points'][0]['x']
         y = clickData['points'][0]['y']
-        z = clickData['points'][0]['z']
+        score_value = new_field.loc[y, x]
 
         # Update the heatmap figure with a red frame around the selected point
-        new_fig = px.imshow(field,  aspect="auto", width=1000, labels={"x": "min_samples", "y": "eps", "color": score},
+        new_fig = px.imshow(new_field, aspect="auto", width=1000,
+                            labels={"x": "min_samples", "y": "eps", "color": score},
                             color_continuous_scale='gray')
         new_fig.update_layout(shapes=[
             go.layout.Shape(
                 type='rect',
-                x0=x-dx/2, y0=y-dy/2,
-                x1=x+dx/2, y1=y+dy/2,
+                x0=x - dx / 2, y0=y - dy / 2,
+                x1=x + dx / 2, y1=y + dy / 2,
                 line=dict(color='red', width=2)
             )
         ])
 
         # update label plots
-        hide_all_traces()
+        cur_labels = labels[(labels.eps == y) & (labels.min_samples == x)]
+        cur_labels = color_code_labels(cur_labels, label_name=data_label)
+
         if not check_value:
-            fig_geo.update_traces(visible=True, selector={'name': f"{y}-{x}-noise-geo"})
-            fig_umap.update_traces(visible=True, selector={'name': f"{y}-{x}-noise-umap"})
-
+            n = "noise"
         elif check_value == ["Hide noise"]:
-            fig_geo.update_traces(visible=True, selector={'name': f"{y}-{x}-no_noise-geo"})
-            fig_umap.update_traces(visible=True, selector={'name': f"{y}-{x}-no_noise-umap"})
+            n = "no_noise"
+            cur_labels = cur_labels[cur_labels[data_label] != -1]
 
-        fig_geo.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
-        fig_umap.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
+        figure_geo = go.Figure(data=go.Scatter3d(name=f"{y}-{x}-{n}-geo",
+                                                 x=cur_labels.LONGITUDE, y=cur_labels.LATITUDE, z=cur_labels.LEV_M * -1,
+                                                 mode='markers',
+                                                 marker=dict(size=scatter_size, color=cur_labels.color, opacity=1)))
+        figure_umap = go.Figure(data=go.Scatter3d(name=f"{y}-{x}-{n}-umap",
+                                                  x=cur_labels.e0, y=cur_labels.e1, z=cur_labels.e2,
+                                                  mode='markers',
+                                                  marker=dict(size=scatter_size, color=cur_labels.color, opacity=1)))
+        figure_geo.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
+        figure_umap.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
 
-        return 'Current parameters: \neps = {}\nmin_samples = {}\n{} = {}'.format(y, x, score_map[score], z), \
-               new_fig, fig_geo, fig_umap, {"eps": y, "min_samples": x}
+        return 'Current parameters: \neps = {}\nmin_samples = {}\n{} = {}'.format(
+            y, x, score_map[score], np.round(score_value, 2)), \
+               new_fig, figure_geo, figure_umap, {"eps": y, "min_samples": x}
     else:
-        return old_text, heatmap_score, fig_geo, fig_umap, {"eps": cur_eps, "min_samples": cur_min_samples}
+        return 'Current parameters: \neps = {}\nmin_samples = {}\n{} = {}'.format(
+            eps, min_samples, score_map[score], np.round(score_value, 2)), \
+               heatmap_score, figure_geo, figure_umap, {"eps": eps, "min_samples": min_samples}
 
 
 # run app
