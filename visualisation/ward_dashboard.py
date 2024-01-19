@@ -34,8 +34,8 @@ def color_code_labels(df, label_name="label_embedding", color_noise_black=False,
 scatter_size = 1.5
 
 # which clustering? on original or embedding?
-data_label = "label_embedding"
-# data_label = "label_original"
+# data_label = "label_embedding"
+data_label = "label_original"
 
 # dbscan labels
 labels = pd.read_csv("../data/ward_labels.csv")
@@ -46,7 +46,7 @@ data = data.drop(data[data.n_clusters == 1].index).reset_index(drop=True)
 data.distance_threshold = data.distance_threshold.astype(str)
 groupby_cols = ['clustering_on', 'scores_on', 'n_clusters', 'distance_threshold', 'linkage']
 data = data.groupby(groupby_cols).mean().drop("iteration", axis=1).reset_index()  # average over iterations
-data = data[(data.clustering_on == 'embedding') & (data.scores_on == 'embedding')]  # filter
+data = data[(data.clustering_on == data_label.split("_")[1]) & (data.scores_on == data_label.split("_")[1])]  # filter
 data = data.drop(['clustering_on', 'scores_on'], axis=1)
 data = data.sort_values(['n_clusters', 'distance_threshold', 'linkage'])
 n_clusterss = np.sort(data.n_clusters.unique())  # all n_clusters
