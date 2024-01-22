@@ -1,10 +1,10 @@
 # no traces but data loading
-
+import dash.exceptions
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 from dash import Dash, dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import numpy as np
 import pandas as pd
 import glasbey
@@ -31,7 +31,7 @@ def color_code_labels(df, label_name="label_embedding", color_noise_black=False,
 
 
 def update_heatmap(score, eps, min_samples):
-    print("update heatmap")
+    print("update heatmap", score, eps, min_samples)
     # create new heatmap
     new_field = pd.DataFrame(data[score_map[score]].to_numpy().reshape(len(epss), len(min_sampless)),
                              index=epss, columns=min_sampless)
@@ -64,7 +64,8 @@ def update_heatmap_selection(fig, eps, min_samples):
 
 
 def update_geo_and_umap(eps, min_samples, noise_check_value, label_selection=[]):
-    print("update geo and umap")
+    print("update geo and umap", eps, min_samples, noise_check_value, label_selection)
+
     # filter data
     cur_labels = labels[(labels.eps == eps) & (labels.min_samples == min_samples)]
     cur_labels = color_code_labels(cur_labels, label_name=data_label)
@@ -96,14 +97,14 @@ def update_geo_and_umap(eps, min_samples, noise_check_value, label_selection=[])
 
 
 def update_text(eps, min_samples, score, score_value):
-    print("update text")
+    print("update text", eps, min_samples, score, score_value)
     if score_value:
         score_value = np.round(score_value, 2)
     return f"Current parameters: \neps={np.round(eps, 5)}\nmin_samples = {min_samples}\n{score} = {score_value}"
 
 
 def update_depth(depth, eps, min_samples, noise_check_value):
-    print("update depth")
+    print("update depth", depth)
     # filter data
     cur_labels = labels[(labels.eps == eps) & (labels.min_samples == min_samples)]
     cur_labels = color_code_labels(cur_labels, label_name=data_label)
@@ -126,7 +127,7 @@ def update_depth(depth, eps, min_samples, noise_check_value):
 
 
 # plot settings
-scatter_size = 1.5
+scatter_size = 2
 margin = 5
 
 # which clustering? on original or embedding?
@@ -201,15 +202,33 @@ app.layout = html.Div([
         style={'display': 'inline-block', 'width': '49vw'}
     ),
     html.Div(
-        dcc.Slider(id="depth-rangeslider", min=0, max=len(labels.LEV_M.unique()) - 1, step=None, value=cur_depth,
-                   marks={i: str(x) for i, x in enumerate(np.sort(labels.LEV_M.unique()))}),
+        [dcc.Slider(id="depth-slider", min=0, max=len(labels.LEV_M.unique()) - 1, step=None, value=cur_depth,
+                    marks={i: str(x) for i, x in enumerate(np.sort(labels.LEV_M.unique()))}),
+         dcc.RadioItems(id="selection-state", value='select all',
+                        options=['select all', 'select', 'deselect'], labelStyle={'display': 'inline-block'})],
         style={'display': 'inline-block', 'width': '49vw'}
     ),
 
     dcc.Store(id="cur-params", data={"eps": cur_eps, "min_samples": cur_min_samples, 'score': cur_score,
                                      "score_value": cur_score_value, "depth": cur_depth,
-                                     "selected_labels": []})
+                                     "selected_labels": [], 'clickData_depth': {'points': [{'x': None, 'y': None}]}}),
+    dcc.Store(id="rotation", data={"umap_relayout": {}, "geo_relayout": {}})
 ])
+
+
+@app.callback(
+    Output('rotation', "data"),
+    Input('rotation', 'data'),
+    Input('fig-geo', 'relayoutData'),
+    Input('fig-umap', 'relayoutData'),
+)
+def update_rotation(rotation, geo_relayout, umap_relayout):
+    print("update rotation callback")
+    new_rotation = rotation.copy()
+    new_rotation["umap_relayout"] = umap_relayout
+    new_rotation["geo_relayout"] = geo_relayout
+
+    return new_rotation
 
 
 @app.callback(
@@ -228,11 +247,14 @@ app.layout = html.Div([
     Input('fig-depth', 'clickData'),  # selectedData
     Input('score', 'value'),
     Input('hide-noise-check', 'value'),
-    Input('depth-rangeslider', 'value'),
+    Input('depth-slider', 'value'),
     Input('cur-params', 'data'),
+    Input('selection-state', 'value'),
+    State('rotation', 'data')
 )
 def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_depth, clickData_depth,
-           new_score, check_value, new_depth, cur_params):
+           new_score, check_value, new_depth, cur_params, selection_state, cur_rotation):
+    print("update callback")
     # get data from previous state
     prev_eps = cur_params["eps"]
     prev_min_samples = cur_params["min_samples"]
@@ -240,6 +262,7 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
     prev_depth = cur_params["depth"]
     prev_score_value = cur_params["score_value"]
     prev_selected_labels = cur_params["selected_labels"]
+    prev_clickData_depth = cur_params["clickData_depth"]
 
     # get data from new state
     new_min_samples = clickData_heatmap['points'][0]['x']
@@ -252,40 +275,12 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
     new_depth_fig = figure_depth
     new_txt = update_text(prev_eps, prev_min_samples, prev_score, prev_score_value)
     new_params = {"eps": prev_eps, "min_samples": prev_min_samples, "score": prev_score,
-                  "score_value": prev_score_value, "depth": prev_depth, "selected_labels": prev_selected_labels}
-
-    # if a click happened in the depth label plot, show that specific cluster only (select and deselect?)
-    # if clickData_depth:
-    if clickData_depth['points'][0]['x']:
-        print("clickData depth", clickData_depth)
-        # find the label of the clicked point
-        lat = clickData_depth['points'][0]['y']
-        lon = clickData_depth['points'][0]['x']
-        cur_labels = labels[(labels.eps == new_eps) & (labels.min_samples == new_min_samples)]
-        selected_label = cur_labels[(cur_labels.LATITUDE == lat) &
-                                    (cur_labels.LONGITUDE == lon) &
-                                    (cur_labels.LEV_M == labels.LEV_M.unique()[new_depth])][data_label].values[0]
-
-        print(lat, lon, prev_selected_labels)
-
-        # deselect if label was already in the selection
-        if selected_label in prev_selected_labels:
-            new_selected_labels = [x for x in prev_selected_labels if x != selected_label]
-        else:
-            new_selected_labels = prev_selected_labels + [selected_label]
-
-        print(lat, lon, new_selected_labels)
-
-        # update label selection
-        new_params["selected_labels"] = new_selected_labels
-
-        # update geo and umap plot accordingly
-        new_geo_fig, new_umap_fig = update_geo_and_umap(eps=new_eps, min_samples=new_min_samples,
-                                                        noise_check_value=check_value,
-                                                        label_selection=new_selected_labels)
+                  "score_value": prev_score_value, "depth": prev_depth, "selected_labels": prev_selected_labels,
+                  "clickData_depth": prev_clickData_depth}
 
     # if score is new, redraw heatmap
     if new_score != prev_score:
+        print("new score")
         new_heatmap_fig, new_score_value = update_heatmap(score=new_score, eps=new_eps, min_samples=new_min_samples)
         new_txt = update_text(eps=new_eps, min_samples=new_min_samples, score=new_score, score_value=new_score_value)
 
@@ -294,6 +289,7 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
 
     # if eps or min_samples are new, update geo, umap and depth figures
     if prev_eps != new_eps or prev_min_samples != new_min_samples:
+        print("new eps or min_samples")
         # update heatmap rectangle
         new_heatmap_fig = update_heatmap_selection(fig=new_heatmap_fig, eps=new_eps, min_samples=new_min_samples)
 
@@ -318,13 +314,63 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
 
     # if depth slider changed, update depth figure
     if new_depth != prev_depth:
+        print(f"new_depth {new_depth}, prev_depth {prev_depth}")
         new_depth_fig = update_depth(depth=new_depth, eps=prev_eps, min_samples=prev_min_samples,
                                      noise_check_value=check_value)
+        new_params["depth"] = new_depth
 
+    # if a click happened in the depth label plot, show that specific cluster only (select and deselect?)
+    if clickData_depth['points'][0]['x']:
+        print("clickData depth", clickData_depth)
+        # find the label of the clicked point
+        lat = clickData_depth['points'][0]['y']
+        lon = clickData_depth['points'][0]['x']
+
+        cur_labels = labels[(labels.eps == new_eps) & (labels.min_samples == new_min_samples)]
+        selected_label = cur_labels[(cur_labels.LATITUDE == lat) &
+                                    (cur_labels.LONGITUDE == lon) &
+                                    (cur_labels.LEV_M == labels.LEV_M.unique()[new_depth])][data_label].values[0]
+
+        print(lat, lon, prev_selected_labels)
+
+        # only update figures if the click data is different to the previous click data7
+        new_selected_labels = prev_selected_labels
+        if selection_state == "select all":
+            new_selected_labels = []
+
+        if prev_clickData_depth != clickData_depth:
+            if selection_state == "select":
+                new_selected_labels = prev_selected_labels + [selected_label]
+            elif selection_state == "deselect":
+                new_selected_labels = [x for x in prev_selected_labels if x != selected_label]
+
+        print(lat, lon, new_selected_labels)
+
+        # update label selection
+        new_params["selected_labels"] = new_selected_labels
+        new_params["clickData_depth"] = clickData_depth
+
+        # update geo and umap plot accordingly
+        new_geo_fig, new_umap_fig = update_geo_and_umap(eps=new_eps, min_samples=new_min_samples,
+                                                        noise_check_value=check_value,
+                                                        label_selection=new_selected_labels)
+
+    # apply previous rotation
+    if cur_rotation:
+        if "umap_relayout" in cur_rotation.keys():
+            if cur_rotation["umap_relayout"]:
+                if "scene.camera" in cur_rotation["umap_relayout"].keys():
+                    print("umap relayout")
+                    new_umap_fig["layout"]["scene.camera"] = cur_rotation["umap_relayout"]["scene.camera"]
+        if "geo_relayout" in cur_rotation.keys():
+            if cur_rotation["geo_relayout"]:
+                if "scene.camera" in cur_rotation["geo_relayout"].keys():
+                    print("geo relayout")
+                    new_geo_fig["layout"]["scene.camera"] = cur_rotation["geo_relayout"]["scene.camera"]
 
     return new_heatmap_fig, new_geo_fig, new_umap_fig, new_depth_fig, new_txt, new_params
 
 
 # run app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, use_reloader=False)
