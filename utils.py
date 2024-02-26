@@ -6,6 +6,7 @@ import numpy as np
 import glasbey
 from kneed import KneeLocator
 
+
 # --- plotting utils -------------------------------------------------------------------- #
 def plot_embedding(embedding, color_label=None, alpha=0.08, size=2, save_as=None):
     """ Plot a 2d or 3d embedding. (It can be a pandas.DataFrame or a numpy.array.) """
@@ -93,7 +94,7 @@ def color_code_labels(df, color_noise_black=False, drop_noise=False):
 
 
 # --- utils to remove clusters -------------------------------------------------------------------- #
-def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log number of grid cells", save_dir=None, suffix=""):
+def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log number of grid cells", save_dir=None, suffix="", y_scale="log"):
     x = df.index
     y = df[y_name]
 
@@ -112,7 +113,7 @@ def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log nu
     plt.xlabel('Clusters')
     plt.xticks([knee])
     plt.text(0, thresh + thresh/100*5, thresh, color="orange")
-    plt.yscale("log")
+    plt.yscale(y_scale)
     plt.ylabel(y_label)
     
     plt.tight_layout()
@@ -121,13 +122,13 @@ def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log nu
         
     plt.show()
 
-def compute_elbow_threshold(df_label_counts, y_name="count"):
+def compute_elbow_threshold(df_label_counts, y_name="count", slope_direction="increasing"):
     """ Compute knee/elbow of an L-curve using the Kneed library. Returns knee and its respective y-value. """
     x = df_label_counts.index
     y = df_label_counts[y_name]
 
     # compute knee
-    kn = KneeLocator(x=x, y=y, curve='convex', direction='increasing')
+    kn = KneeLocator(x=x, y=y, curve='convex', direction=slope_direction)
     knee = kn.knee
 
     return knee, df_label_counts.iloc[knee][y_name]
@@ -156,9 +157,6 @@ def drop_clusters_with_few_samples(df, thresh=None, plotting=True, save_dir=None
      # set all labels to -1  where num samples is too small
     labels_to_keep = list(df_nums[df_nums["count"] >= thresh].label)
     temp.loc[~(temp.label.astype(str).isin(labels_to_keep)), "label"] = -1
-
-    # plotting
-    # if plotting:
-        # coupled_label_plot(df=temp[temp.label!=-1], color_label=some_column, save_dir=save_dir, suffix=suffix, umap_plot=True)
     
     return temp, knee, thresh
+    
