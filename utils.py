@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import glasbey
 from kneed import KneeLocator
+from geopy import distance  # geopy can only compute distances at surface
 
 
 # --- plotting utils -------------------------------------------------------------------- #
@@ -157,6 +158,82 @@ def drop_clusters_with_few_samples(df, thresh=None, plotting=True, save_dir=None
      # set all labels to -1  where num samples is too small
     labels_to_keep = list(df_nums[df_nums["count"] >= thresh].label)
     temp.loc[~(temp.label.astype(str).isin(labels_to_keep)), "label"] = -1
+    print("Remaining number of clusters: " + str(len(labels_to_keep)))
     
-    return temp, knee, thresh
+    return temp, knee, thresh, df_nums
+
+def compute_volume(row, dlat, dlon, depths):
+    """ Computes the volume of a given grid cell. """
+    # careful!! I am assuming that depth does not affect distance calculations
+    # approximate volume as a box, ignore depth, surface approximated by trapezoid
+    lat = row["LATITUDE"]
+    lon = row["LONGITUDE"]
+    depth = row["LEV_M"]
+
+    # find depth step size
+    idx = np.argwhere(depths == depth)
+    next_depth = depths[idx+1]
+    ddepth = (next_depth - depth).flatten()[0]
+
+    # compute box edge points
+    p0 = np.array([lat - dlat / 2, lon - dlon / 2, depth])
+    p1 = np.array([lat - dlat / 2, lon + dlon / 2, depth])
+    p2 = np.array([lat + dlat / 2, lon + dlon / 2, depth])
+    p3 = np.array([lat + dlat / 2, lon - dlon / 2, depth])
+
+    # compute distances
+    # d03 = distance.distance(p0, p3).m
+    d01 = distance.distance(p0, p1).m
+    d23 = distance.distance(p2, p3).m
+    # d12 = distance.distance(p2, p1).m
+
+    # compute height of trapezoid
+    p01 = np.array([p0[0], lon, p0[2]])
+    p23 = np.array([p2[0], lon, p2[2]])
+    h = distance.distance(p01, p23).m
+
+    # compute volume
+    # v = round((depth+ ddepth) * 0.5 * (d01 + d23) * h, 4)  # volume in m3
+    v = ddepth * 0.5 * (d01 + d23) * h  # volume in m3
+
+    return v
     
+def drop_clusters_with_small_volume(df, thresh=None, y_scale="linear", save_dir=None, suffix="", plotting=True):
+    """ If thresh is None, the Kneedle algorithm will be used to determine a treshold. """
+    temp = df.copy()
+    knee = None
+
+    # define resolution
+    dlat = 1
+    dlon = 1
+    
+    # get depth resolution
+    depths = temp["LEV_M"].unique()
+    depths = np.concatenate([depths, np.array([5000]).reshape(1, -1).flatten()])  # adding the lower depth bound
+
+    # compute volume
+    temp["volume"] = temp.apply(compute_volume, axis=1, args=(dlat, dlon, depths))  # careful with rounding
+
+    # check cluster volumes
+    df_vols = temp.groupby("label").sum()["volume"].reset_index()
+    df_vols = df_vols.sort_values("volume").reset_index(drop=True)
+    df_vols["label"] = df_vols["label"].astype(str)
+
+    # compute threshold to cut off clusters
+    if not thresh:
+        knee, thresh = compute_elbow_threshold(df_vols, y_name="volume")
+        if plotting:
+            plot_elbow_curve(df_vols, knee=knee, y_name="volume", y_label="Log cluster volume", save_dir=save_dir, suffix=suffix)
+    elif plotting:
+        # plot volume per cluster
+        plot_elbow_curve(df_vols, thresh=thresh, y_name="volume", y_label="Log cluster volume", save_dir=save_dir, suffix=suffix)
+
+    # decide which labels to keep
+    labels_to_keep = df_vols[df_vols["volume"] >= thresh].label
+    print("Remaining number of clusters: " + str(len(labels_to_keep)))
+    df_new = temp[temp["label"].astype(str).isin(labels_to_keep)]
+
+    # plot new data in 3D and UMAP space
+    coupled_label_plot(df_new[df_new.label != -1])
+
+    return df_new, knee, thresh, df_vols

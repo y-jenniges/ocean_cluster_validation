@@ -84,14 +84,30 @@ def update_geo_and_umap(eps, min_samples, noise_check_value, label_selection=[])
     figure_geo = go.Figure(data=go.Scatter3d(name=f"{eps}-{min_samples}-{n}-geo",
                                              x=cur_labels.LONGITUDE, y=cur_labels.LATITUDE, z=cur_labels.LEV_M * -1,
                                              mode='markers',
-                                             marker=dict(size=scatter_size, color=cur_labels.color, opacity=1)))
+                                             marker=dict(size=scatter_size, color=cur_labels.color, opacity=1),
+                                             hovertemplate='Longitude: %{x}<br>' +
+                                                           'Latitude: %{y}<br>' +
+                                                           'Depth: %{z}<br>' +
+                                                           'Label: %{text}<extra></extra>',
+                                             text=cur_labels[data_label]
+                                             ))
     figure_umap = go.Figure(data=go.Scatter3d(name=f"{eps}-{min_samples}-{n}-umap",
                                               x=cur_labels.e0, y=cur_labels.e1, z=cur_labels.e2,
                                               mode='markers',
-                                              marker=dict(size=scatter_size, color=cur_labels.color, opacity=1)))
+                                              marker=dict(size=scatter_size, color=cur_labels.color, opacity=1),
+                                              hovertemplate='Longitude: %{x}<br>' +
+                                                            'Latitude: %{y}<br>' +
+                                                            'Depth: %{z}<br>' +
+                                                            'Label: %{text}<extra></extra>',
+                                              text=cur_labels[data_label]
+                                              ))
 
-    figure_geo.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin))
-    figure_umap.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin))
+    figure_geo.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
+                             scene=dict(xaxis_title="Longitude", yaxis_title="Latitude", zaxis_title="Depth [m]"),
+                             uirevision=True)
+    figure_umap.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
+                              scene=dict(xaxis_title="Longitude", yaxis_title="Latitude", zaxis_title="Depth [m]"),
+                              uirevision=True)
 
     return figure_geo, figure_umap
 
@@ -100,7 +116,7 @@ def update_text(eps, min_samples, score, score_value):
     print("update text", eps, min_samples, score, score_value)
     if score_value:
         score_value = np.round(score_value, 2)
-    return f"Current parameters: \neps={np.round(eps, 5)}\nmin_samples = {min_samples}\n{score} = {score_value}"
+    return f"Current parameters: \neps={np.round(eps, 8)}\nmin_samples = {min_samples}\n{score} = {score_value}"
 
 
 def update_depth(depth, eps, min_samples, noise_check_value):
@@ -119,9 +135,15 @@ def update_depth(depth, eps, min_samples, noise_check_value):
     temp_labels = cur_labels[cur_labels.LEV_M == cur_labels.LEV_M.unique()[depth]]
 
     # define figure
-    figure_depth = go.Figure(data=go.Scatter(name=f"{depth}-{n}-depth", x=temp_labels.LONGITUDE, y=temp_labels.LATITUDE,
-                                             mode='markers', marker=dict(color=temp_labels.color)))
-    figure_depth.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin))
+    figure_depth = go.Figure(data=go.Scattergeo(name=f"{depth}-{n}-depth", lon=temp_labels.LONGITUDE,
+                                                lat=temp_labels.LATITUDE,
+                                                mode='markers', marker=dict(color=temp_labels.color),
+                                                hovertemplate='Longitude: %{x}<br>' +
+                                                              'Latitude: %{y}<br>' +
+                                                              'Label: %{text}<extra></extra>',
+                                                text=temp_labels[data_label]
+                                                ))
+    figure_depth.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin), uirevision=True)
 
     return figure_depth
 
@@ -198,7 +220,7 @@ app.layout = html.Div([
         style={'margin': dict(l=margin, r=margin, t=margin, b=margin), 'display': 'inline-block', 'width': '49vw'}
     ),
     html.Div(
-        dcc.Graph(id="fig-depth", figure=fig_depth, clickData={'points': [{'x': None, 'y': None}]}),
+        dcc.Graph(id="fig-depth", figure=fig_depth, clickData={'points': [{'lon': None, 'lat': None}]}),
         style={'display': 'inline-block', 'width': '49vw'}
     ),
     html.Div(
@@ -211,8 +233,9 @@ app.layout = html.Div([
 
     dcc.Store(id="cur-params", data={"eps": cur_eps, "min_samples": cur_min_samples, 'score': cur_score,
                                      "score_value": cur_score_value, "depth": cur_depth,
-                                     "selected_labels": [], 'clickData_depth': {'points': [{'x': None, 'y': None}]}}),
-    dcc.Store(id="rotation", data={"umap_relayout": {}, "geo_relayout": {}})
+                                     "selected_labels": [],
+                                     'clickData_depth': {'points': [{'lon': None, 'lat': None}]}}),
+    dcc.Store(id="rotation", data={"umap_relayout": {}, "geo_relayout": {}, "depth_relayout": {}})
 ])
 
 
@@ -221,12 +244,14 @@ app.layout = html.Div([
     Input('rotation', 'data'),
     Input('fig-geo', 'relayoutData'),
     Input('fig-umap', 'relayoutData'),
+    Input('fig-depth', 'relayoutData')
 )
-def update_rotation(rotation, geo_relayout, umap_relayout):
-    print("update rotation callback")
+def update_rotation(rotation, geo_relayout, umap_relayout, depth_relayout):
+    # print("update rotation callback")
     new_rotation = rotation.copy()
     new_rotation["umap_relayout"] = umap_relayout
     new_rotation["geo_relayout"] = geo_relayout
+    new_rotation["depth_relayout"] = depth_relayout
 
     return new_rotation
 
@@ -254,7 +279,7 @@ def update_rotation(rotation, geo_relayout, umap_relayout):
 )
 def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_depth, clickData_depth,
            new_score, check_value, new_depth, cur_params, selection_state, cur_rotation):
-    print("update callback")
+    # print("update callback")
     # get data from previous state
     prev_eps = cur_params["eps"]
     prev_min_samples = cur_params["min_samples"]
@@ -317,19 +342,24 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
         print(f"new_depth {new_depth}, prev_depth {prev_depth}")
         new_depth_fig = update_depth(depth=new_depth, eps=prev_eps, min_samples=prev_min_samples,
                                      noise_check_value=check_value)
+
         new_params["depth"] = new_depth
 
     # if a click happened in the depth label plot, show that specific cluster only (select and deselect?)
-    if clickData_depth['points'][0]['x']:
+    if clickData_depth['points'][0]['lon']:
         print("clickData depth", clickData_depth)
         # find the label of the clicked point
-        lat = clickData_depth['points'][0]['y']
-        lon = clickData_depth['points'][0]['x']
+        lat = clickData_depth['points'][0]['lat']
+        lon = clickData_depth['points'][0]['lon']
 
         cur_labels = labels[(labels.eps == new_eps) & (labels.min_samples == new_min_samples)]
         selected_label = cur_labels[(cur_labels.LATITUDE == lat) &
                                     (cur_labels.LONGITUDE == lon) &
-                                    (cur_labels.LEV_M == labels.LEV_M.unique()[new_depth])][data_label].values[0]
+                                    (cur_labels.LEV_M == labels.LEV_M.unique()[new_depth])][data_label]
+        if selected_label.empty:
+            selected_label = []
+        else:
+            selected_label = [selected_label.values[0]]
 
         print(lat, lon, prev_selected_labels)
 
@@ -340,9 +370,9 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
 
         if prev_clickData_depth != clickData_depth:
             if selection_state == "select":
-                new_selected_labels = prev_selected_labels + [selected_label]
+                new_selected_labels = prev_selected_labels + selected_label
             elif selection_state == "deselect":
-                new_selected_labels = [x for x in prev_selected_labels if x != selected_label]
+                new_selected_labels = [x for x in prev_selected_labels if x != selected_label[0]]
 
         print(lat, lon, new_selected_labels)
 
@@ -357,6 +387,8 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
 
     # apply previous rotation
     if cur_rotation:
+        print(figure_depth)
+        print(cur_rotation)
         if "umap_relayout" in cur_rotation.keys():
             if cur_rotation["umap_relayout"]:
                 if "scene.camera" in cur_rotation["umap_relayout"].keys():
@@ -367,8 +399,52 @@ def update(figure_heatmap, clickData_heatmap, figure_geo, figure_umap, figure_de
                 if "scene.camera" in cur_rotation["geo_relayout"].keys():
                     print("geo relayout")
                     new_geo_fig["layout"]["scene.camera"] = cur_rotation["geo_relayout"]["scene.camera"]
+        if "depth_relayout" in cur_rotation.keys():
+            if cur_rotation["depth_relayout"]:
+                if "scene.camera" in cur_rotation["depth_relayout"].keys():
+                    print("depth relayout")
+                    new_depth_fig["layout.geo.projection.rotation.lon"] = cur_rotation["depth_relayout"]["projection.rotation.lon"]
 
     return new_heatmap_fig, new_geo_fig, new_umap_fig, new_depth_fig, new_txt, new_params
+
+
+# import pandas as pd
+# import numpy as np
+# data_label = "label_embedding"
+# # data_label = "label_original"
+# labels = pd.read_csv("data/dbscan_labels.csv")
+# df_in = pd.read_csv("data/df_wide_knn.csv")
+def get_info(cluster_label, labels, df_in, eps=0.10983051, min_samples=4):
+    # filter for the correct hyperparameter combination
+    temp = labels[(np.round(labels.eps, 8) == np.round(eps, 8)) & (labels.min_samples == min_samples)]
+    all_labels = temp[data_label].unique()  # find all labels of that clustering
+
+    # check if cluster label exists
+    if cluster_label in all_labels:
+        temp = temp[temp[data_label] == cluster_label]  # filter out the cluster label
+        # merge labels to parameter information
+        temp_merged = pd.merge(left=temp, right=df_in, how="left", on=["LATITUDE", "LONGITUDE", "LEV_M"])
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+            print(f"Information on cluster label {cluster_label}")
+            print(temp_merged[[x for x in temp_merged.columns
+                               if x not in ["eps", "min_samples", "label_embedding", "label_original"]]].describe())
+
+        return temp_merged
+    else:
+        print(f"Cluster label {cluster_label} not found.")
+        return
+
+
+def difference_between_two_labels(a, b, labels, df_in, eps=0.10983051, min_samples=4):
+    a_data = get_info(a, labels, df_in, eps, min_samples)
+    b_data = get_info(b, labels, df_in, eps, min_samples)
+
+    diff = (a_data.describe() - b_data.describe())
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(f"Information on the difference of cluster labels {a} and {b}")
+        print(diff[[x for x in a_data.columns if x not in ["eps", "min_samples", "label_embedding", "label_original"]]])
+
+    # return diff
 
 
 # run app
