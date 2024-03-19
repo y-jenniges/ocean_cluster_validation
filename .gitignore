@@ -1,6 +1,7 @@
 # models and plots, data
 output/
 data/
+output_final/
 
 # Python 
 # Byte-compiled / optimized / DLL files
