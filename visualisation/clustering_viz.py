@@ -31,25 +31,41 @@ def update_geo_and_umap(data_label="label", hide_noise=True, label_selection=[])
                                              marker=dict(size=scatter_size, color=df_display.color, opacity=1),
                                              hovertemplate='Longitude: %{x}<br>' +
                                                            'Latitude: %{y}<br>' +
-                                                           'Depth: %{z}<br>' +
-                                                           'Label: %{text}<extra></extra>',
-                                             text=df_display[data_label]
+                                                           'Depth: %{z} m<br>' +
+                                                           'Temperature: %{text[0]:.2f} °C<br>' +
+                                                           'Salinity: %{text[1]:.2f} psu<br>' +
+                                                           'Oxygen: %{text[2]:.2f} µmol/kg<br>' +
+                                                           'Nitrate: %{text[3]:.2f} µmol/kg<br>' +
+                                                           'Silicate: %{text[4]:.2f} µmol/kg<br>' +
+                                                           'Phosphate: %{text[5]:.2f} µmol/kg<br>' +
+                                                           'Label: %{text[6]}<extra></extra>',
+                                             text=df_display[["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN",
+                                                              "P_NITRATE", "P_SILICATE", "P_PHOSPHATE",
+                                                              data_label]]
                                              ))
     figure_umap = go.Figure(data=go.Scatter3d(x=df_display.e0, y=df_display.e1, z=df_display.e2,
                                               mode='markers',
                                               marker=dict(size=scatter_size, color=df_display.color, opacity=1),
-                                              hovertemplate='Longitude: %{x}<br>' +
-                                                            'Latitude: %{y}<br>' +
-                                                            'Depth: %{z}<br>' +
-                                                            'Label: %{text}<extra></extra>',
-                                              text=df_display[data_label]
+                                              hovertemplate='X: %{x:.2f}<br>' +
+                                                            'Y: %{y:.2f}<br>' +
+                                                            'Z: %{z:.2f}<br>' +
+                                                            'Temperature: %{text[0]:.2f} °C<br>' +
+                                                            'Salinity: %{text[1]:.2f} psu<br>' +
+                                                            'Oxygen: %{text[2]:.2f} µmol/kg<br>' +
+                                                            'Nitrate: %{text[3]:.2f} µmol/kg<br>' +
+                                                            'Silicate: %{text[4]:.2f} µmol/kg<br>' +
+                                                            'Phosphate: %{text[5]:.2f} µmol/kg<br>' +
+                                                            'Label: %{text[6]}<extra></extra>',
+                                              text=df_display[["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN",
+                                                               "P_NITRATE", "P_SILICATE", "P_PHOSPHATE",
+                                                               data_label]]
                                               ))
 
     figure_geo.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
                              scene=dict(xaxis_title="Longitude", yaxis_title="Latitude", zaxis_title="Depth [m]"),
                              uirevision=True)
     figure_umap.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
-                              scene=dict(xaxis_title="Longitude", yaxis_title="Latitude", zaxis_title="Depth [m]"),
+                              scene=dict(xaxis_title="X", yaxis_title="Y", zaxis_title="Z"),
                               uirevision=True)
 
     return figure_geo, figure_umap
@@ -70,10 +86,18 @@ def update_depth(depth_idx, hide_noise=True, data_label="label"):
     figure_depth = go.Figure(data=go.Scattergeo(lon=df_display.LONGITUDE,
                                                 lat=df_display.LATITUDE,
                                                 mode='markers', marker=dict(color=df_display.color),
-                                                hovertemplate='Longitude: %{x}<br>' +
-                                                              'Latitude: %{y}<br>' +
-                                                              'Label: %{text}<extra></extra>',
-                                                text=df_display[data_label]
+                                                hovertemplate='Longitude: %{lon}<br>' +
+                                                              'Latitude: %{lat}<br>' +
+                                                              'Temperature: %{text[0]:.2f} °C<br>' +
+                                                              'Salinity: %{text[1]:.2f} psu<br>' +
+                                                              'Oxygen: %{text[2]:.2f} µmol/kg<br>' +
+                                                              'Nitrate: %{text[3]:.2f} µmol/kg<br>' +
+                                                              'Silicate: %{text[4]:.2f} µmol/kg<br>' +
+                                                              'Phosphate: %{text[5]:.2f} µmol/kg<br>' +
+                                                              'Label: %{text[6]}<extra></extra>',
+                                                text=df_display[["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN",
+                                                                 "P_NITRATE", "P_SILICATE", "P_PHOSPHATE",
+                                                                 data_label]]
                                                 ))
     figure_depth.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin), uirevision=True)
     figure_depth.update_geos(
@@ -89,7 +113,7 @@ margin = 5
 # load file to visualise
 # df = pd.read_csv("../output_final/dbscan/uncertainty/umap_dbscan_7.csv")
 # df = utils.color_code_labels(df)
-df = pd.read_csv("../re-assigned_aa.csv")
+df = pd.read_csv("../output_final/dbscan/post_processing/re-assigned_A1.csv")
 data_label = "label"
 
 # df = pd.read_csv("../output_final/dbscan/uncertainty/uncertainty.csv")
