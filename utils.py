@@ -141,7 +141,7 @@ def plot_ts(df, figsize=(4, 4), xlim=None, save_as=None):
     CS = plt.contour(si, ti, dens, linestyles='dashed', colors='k')
     plt.clabel(CS, fontsize=12, inline=1, fmt='%1.0f')  # Label every second level
     ax.scatter(x=temp["abs_salinity"], y=temp["cons_temperature"], s=9, c=temp["color"], alpha=1, marker=".")
-    ax.set_xlabel('Absolute salinity [k/kg]')
+    ax.set_xlabel('Absolute salinity [g/kg]')
     ax.set_ylabel('Conservative temperature [°C]')
     ax.set_xlim(xlim)
     plt.tight_layout()
