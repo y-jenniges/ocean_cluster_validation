@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
-import seaborn as sns
 import pandas as pd
 import numpy as np
 import glasbey
@@ -65,7 +64,7 @@ def coupled_label_plot(df, color_label="color", save_dir=None, suffix="", umap_p
     ax = fig.add_subplot(projection='3d')
     ax.scatter(temp["LONGITUDE"], temp["LATITUDE"], temp["LEV_M"], c=temp[color_label], s=0.5, alpha=1, zorder=4) 
     ax.add_collection3d(mymap.drawcoastlines(linewidth=0.5))
-    ax.set_box_aspect((np.ptp(temp["LONGITUDE"]), np.ptp(temp["LATITUDE"]), np.ptp(temp["LEV_M"])/50))  # aspect ratio is 1:1:1 in data space
+    ax.set_box_aspect((np.ptp(temp["LONGITUDE"]), np.ptp(temp["LATITUDE"]), np.ptp(temp["LEV_M"])/50))
     plt.gca().invert_zaxis()
     plt.tight_layout()
     if save_dir:
@@ -131,15 +130,12 @@ def plot_ts(df, figsize=(4, 4), xlim=None, save_as=None):
     
     # convert to sigma-t
     dens = dens - 1000
-    
-    # basemap for plot
-    map = Basemap(llcrnrlon=temp["LONGITUDE"].min(), llcrnrlat=temp["LATITUDE"].min(),
-                  urcrnrlon=temp["LONGITUDE"].max(), urcrnrlat=temp["LATITUDE"].max())
 
+    # plot
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
-    CS = plt.contour(si, ti, dens, linestyles='dashed', colors='k')
-    plt.clabel(CS, fontsize=12, inline=1, fmt='%1.0f')  # Label every second level
+    contours = plt.contour(si, ti, dens, linestyles='dashed', colors='k')
+    plt.clabel(contours, fontsize=12, inline=1, fmt='%1.0f')  # label every second level
     ax.scatter(x=temp["abs_salinity"], y=temp["cons_temperature"], s=9, c=temp["color"], alpha=1, marker=".")
     ax.set_xlabel('Absolute salinity [g/kg]')
     ax.set_ylabel('Conservative temperature [°C]')
@@ -150,12 +146,13 @@ def plot_ts(df, figsize=(4, 4), xlim=None, save_as=None):
     plt.show()
     
 
-# --- utils to remove clusters by grid cell number -------------------------------------------------------------------- #
-def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log number of grid cells", y_scale="log", save_dir=None, suffix=""):
+# --- utils to remove clusters by grid cell number ------------------------------------------------------------------- #
+def plot_elbow_curve(df, knee=None, thresh=None, y_name="count", y_label="Log number of grid cells", y_scale="log",
+                     save_dir=None, suffix=""):
     x = df.index
     y = df[y_name]
 
-    fig = plt.figure()
+    plt.figure()
     plt.plot(x, y, "-") 
 
     if thresh:
@@ -192,7 +189,8 @@ def compute_elbow_threshold(df_label_counts, y_name="count", slope_direction="in
     return knee, df_label_counts.iloc[knee][y_name]
 
 
-def drop_clusters_with_few_samples(df, thresh=None, plotting=True, y_label="Log number of grid cells", y_scale="log", save_dir=None, suffix=""):
+def drop_clusters_with_few_samples(df, thresh=None, plotting=True, y_label="Log number of grid cells", y_scale="log",
+                                   save_dir=None, suffix=""):
     """ If thresh is None, the Kneedle algorithm will be used to determine a treshold. """
     temp = df.copy()
     knee = None
@@ -212,7 +210,7 @@ def drop_clusters_with_few_samples(df, thresh=None, plotting=True, y_label="Log 
         # plot number of cells per cluster
         plot_elbow_curve(df_nums, thresh=thresh, y_label=y_label, y_scale=y_scale, save_dir=save_dir, suffix=suffix)
 
-     # set all labels to -1  where num samples is too small
+    # set all labels to -1  where num samples is too small
     labels_to_keep = list(df_nums[df_nums["count"] >= thresh].label)
     temp.loc[~(temp.label.astype(str).isin(labels_to_keep)), "label"] = -1
     print("Remaining number of clusters: " + str(len(labels_to_keep)))
@@ -220,7 +218,7 @@ def drop_clusters_with_few_samples(df, thresh=None, plotting=True, y_label="Log 
     return temp, knee, thresh, df_nums
 
 
-# --- utils to remove clusters by grid cell volume -------------------------------------------------------------------- #
+# --- utils to remove clusters by grid cell volume ------------------------------------------------------------------- #
 def compute_volume(row, dlat, dlon, depths):
     """ Computes the volume of a given grid cell. """
     # careful!! I am assuming that depth does not affect distance calculations
@@ -258,7 +256,8 @@ def compute_volume(row, dlat, dlon, depths):
     return v
 
 
-def drop_clusters_with_small_volume(df, thresh=None, y_label="Log number of grid cells", y_scale="log", save_dir=None, suffix="", plotting=True):
+def drop_clusters_with_small_volume(df, thresh=None, y_label="Log number of grid cells", y_scale="log", save_dir=None,
+                                    suffix="", plotting=True):
     """ If thresh is None, the Kneedle algorithm will be used to determine a treshold. """
     temp = df.copy()
     knee = None
@@ -283,12 +282,14 @@ def drop_clusters_with_small_volume(df, thresh=None, y_label="Log number of grid
     if not thresh:
         knee, thresh = compute_elbow_threshold(df_vols, y_name="volume")
         if plotting:
-            plot_elbow_curve(df_vols, knee=knee, y_name="volume", y_label=y_label, y_scale=y_scale, save_dir=save_dir, suffix=suffix)
+            plot_elbow_curve(df_vols, knee=knee, y_name="volume", y_label=y_label, y_scale=y_scale,
+                             save_dir=save_dir, suffix=suffix)
     elif plotting:
         # plot volume per cluster
-        plot_elbow_curve(df_vols, thresh=thresh, y_name="volume", y_label=y_label, y_scale=y_scale, save_dir=save_dir, suffix=suffix)
+        plot_elbow_curve(df_vols, thresh=thresh, y_name="volume", y_label=y_label, y_scale=y_scale,
+                         save_dir=save_dir, suffix=suffix)
 
-     # set all labels to -1  where num samples is too small
+    # set all labels to -1  where num samples is too small
     labels_to_keep = list(df_vols[df_vols["volume"] >= thresh].label)
     print("Remaining number of clusters: " + str(len(labels_to_keep)))
     temp.loc[~(temp.label.astype(str).isin(labels_to_keep)), "label"] = -1
@@ -296,10 +297,12 @@ def drop_clusters_with_small_volume(df, thresh=None, y_label="Log number of grid
     return temp, knee, thresh, df_vols
 
 
-# --- utils to remove clusters by geographic cohesion ------------------------------------------------------------------- #
-def find_cell_neighbours(table, cell_idx, depths, dlat=1, dlon=1, known_neighbours=[]):
+# --- utils to remove clusters by geographic cohesion ---------------------------------------------------------------- #
+def find_cell_neighbours(table, cell_idx, depths, dlat=1, dlon=1, known_neighbours=None):
     """Recursively find geographically neighbouring cells of a given cell. """
     # init neighbourhood
+    if known_neighbours is None:
+        known_neighbours = []
     hood = [cell_idx]
 
     # reference point
@@ -327,7 +330,8 @@ def find_cell_neighbours(table, cell_idx, depths, dlat=1, dlon=1, known_neighbou
     for new_idx in hood:
         # do not visit self again
         if new_idx != cell_idx:
-            hood = list(set(hood + find_cell_neighbours(table=table, cell_idx=new_idx, depths=depths, dlat=dlat, dlon=dlon, known_neighbours=hood + known_neighbours)))
+            hood = list(set(hood + find_cell_neighbours(table=table, cell_idx=new_idx, depths=depths, dlat=dlat,
+                                                        dlon=dlon, known_neighbours=hood + known_neighbours)))
 
     return hood
 
@@ -351,8 +355,8 @@ def find_neighbours(df, dlat=1, dlon=1):
 
         # load cluster
         temp = df[df.label == c].sort_values(["LATITUDE", "LONGITUDE", "LEV_M"])
-        all_idxs = list(temp.index)
-        num_grid_cells = len(temp)
+        # all_idxs = list(temp.index)
+        # num_grid_cells = len(temp)
 
         # scale dataframe
         temp_scaled = pd.DataFrame(MinMaxScaler().fit_transform(temp), columns=temp.columns, index=temp.index)
@@ -365,7 +369,8 @@ def find_neighbours(df, dlat=1, dlon=1):
         for i in list(temp.index):
             # make sure you did not visit this point before
             if i not in visited_points:
-                neighbourhood = np.sort(find_cell_neighbours(table=temp, cell_idx=i, depths=depths, dlat=dlat, dlon=dlon, known_neighbours=[]))
+                neighbourhood = np.sort(find_cell_neighbours(table=temp, cell_idx=i, depths=depths, dlat=dlat,
+                                                             dlon=dlon, known_neighbours=[]))
                 neighbourhoods.append(neighbourhood)
                 visited_points = list(set(visited_points + list(neighbourhood)))
 
