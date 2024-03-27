@@ -3,7 +3,6 @@ from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
-import utils
 
 
 def update_geo_and_umap(column="label", hide_noise=True, label_selection=None):
