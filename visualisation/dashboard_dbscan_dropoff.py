@@ -12,6 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import DBSCAN
 import umap
 import glob
+import utils
 
 
 def color_code_labels(df, label_name="label", color_noise_black=False, drop_noise=False):
@@ -37,8 +38,7 @@ def update_geo_and_umap(iteration, hide_noise=True, label_selection=[], labels_a
     print("update geo and umap", iteration, hide_noise, label_selection)
 
     # compute clustering
-    df_cur = df_dbscan[iteration]
-    df_cur = color_code_labels(df_cur)
+    df_cur = df_dbscan.copy()
 
     # show or hide noise
     n = "show_noise"
@@ -86,46 +86,106 @@ def update_geo_and_umap(iteration, hide_noise=True, label_selection=[], labels_a
     return figure_geo, figure_umap
 
 
-def update_elbow(iteration, thresh=None, label=None, y_scale="log"):
+def update_elbow(iteration, thresh=None, label=None, y_scale="log", removal_method="small clusters"):
     # get current clustering
-    df_cur = df_dbscan[iteration]
+    df_cur = df_dbscan.copy()
 
-    # count number of grid cells in each cluster
-    some_column = df_cur.columns[0]
-    df_nums = df_cur.groupby("label").count()[some_column].reset_index().rename(columns={some_column: "count"})
-    df_nums = df_nums.sort_values("count").reset_index(drop=True)
-    df_nums["label"] = df_nums["label"].astype(str)
+    # check which removal method is active
+    if removal_method == "small clusters":
+        print("small clusters")
 
-    # define figure
-    figure_elbow = go.Figure(data=go.Scatter(x=df_nums["label"], y=df_nums["count"], mode='lines+markers',
-                                             # marker=dict(size=scatter_size, color=df_cur_selection.color, opacity=1),
-                                             hovertemplate='Label: %{x}<br>' +
-                                                           'Count: %{y}<br>'
-                                             ))
-    figure_elbow.update_yaxes(type=y_scale)
-    figure_elbow.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
-                               scene=dict(xaxis_title="Label", yaxis_title="Grid cell count"),
-                               uirevision=True)
-    labels_above_thresh = []
-    print(f"thresh {thresh}")
-    if thresh:
-        labels_above_thresh = list(df_nums[df_nums["count"] > thresh].label.astype(int))
-        if not label:
-            x = df_nums[df_nums["count"] == thresh]["label"].index[0]
-        else:
-            x = df_nums[df_nums["label"] == label]["label"].index[0]
-        figure_elbow.add_hline(y=thresh)
-        figure_elbow.add_vline(x=x)
+        # count number of grid cells in each cluster
+        some_column = df_cur.columns[0]
+        df_nums = df_cur.groupby("label").count()[some_column].reset_index().rename(columns={some_column: "count"})
+        df_nums = df_nums.sort_values("count").reset_index(drop=True)
+        df_nums["label"] = df_nums["label"].astype(str)
 
-    return figure_elbow, labels_above_thresh
+        # define figure
+        figure_elbow = go.Figure(data=go.Scatter(x=df_nums["label"], y=df_nums["count"], mode='lines+markers',
+                                                 # marker=dict(size=scatter_size, color=df_cur_selection.color,
+                                                 # opacity=1),
+                                                 hovertemplate='Label: %{x}<br>' +
+                                                               'Count: %{y}<br>'
+                                                 ))
+        figure_elbow.update_yaxes(type=y_scale)
+        figure_elbow.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
+                                   scene=dict(xaxis_title="Label", yaxis_title="Grid cell count"),
+                                   uirevision=True)
+        labels_above_thresh = []
+        print(f"thresh {thresh}")
+        if thresh:
+            labels_above_thresh = list(df_nums[df_nums["count"] > thresh].label.astype(int))
+            if not label:
+                x = df_nums[df_nums["count"] == thresh]["label"].index[0]
+            else:
+                x = df_nums[df_nums["label"] == label]["label"].index[0]
+            figure_elbow.add_hline(y=thresh)
+            figure_elbow.add_vline(x=x)
+
+        return figure_elbow, labels_above_thresh
+
+    elif removal_method == "small volume clusters":
+        print("small volume clusters")
+        knee = None
+
+        # define resolution
+        dlat = 1
+        dlon = 1
+
+        # get depth resolution
+        depths = df_cur["LEV_M"].unique()
+        depths = np.concatenate([depths, np.array([5000]).reshape(1, -1).flatten()])  # adding the lower depth bound
+
+        # compute volume
+        df_cur["volume"] = df_cur.apply(utils.compute_volume, axis=1, args=(dlat, dlon, depths))  # careful with rounding
+
+        # check cluster volumes
+        df_vols = df_cur.groupby("label").sum()["volume"].reset_index()
+        df_vols = df_vols.sort_values("volume").reset_index(drop=True)
+        df_vols["label"] = df_vols["label"].astype(str)
+
+        # define figure
+        figure_elbow = go.Figure(data=go.Scatter(x=df_vols["label"], y=df_vols["volume"], mode='lines+markers',
+                                                 # marker=dict(size=scatter_size, color=df_cur_selection.color, opacity=1),
+                                                 hovertemplate='Label: %{x}<br>' +
+                                                               'Volume: %{y}<br>'
+                                                 ))
+        figure_elbow.update_yaxes(type=y_scale)
+        figure_elbow.update_layout(margin=dict(l=margin, r=margin, t=margin, b=margin),
+                                   scene=dict(xaxis_title="Label", yaxis_title="Grid cell count"),
+                                   uirevision=True)
+        labels_above_thresh = []
+        print(f"thresh {thresh}")
+        if thresh:
+            labels_above_thresh = list(df_vols[df_vols["volume"] > thresh].label.astype(int))
+            if not label:
+                x = df_vols[df_vols["volume"] == thresh]["label"].index[0]
+            else:
+                x = df_vols[df_vols["label"] == label]["label"].index[0]
+            figure_elbow.add_hline(y=thresh)
+            figure_elbow.add_vline(x=x)
+
+        # decide which labels to keep
+        print("Remaining number of clusters: " + str(len(labels_above_thresh)))
+        print("small volume clusters done")
+
+        return figure_elbow, labels_above_thresh
+
+    elif removal_method == "1-cell sections":
+        figure_elbow = None
+        return figure_elbow, []
+
+    elif removal_method == "In-cohesive clusters":
+        return None, []
+
+    else:
+        return None, []
 
 
-# load pre-computed DBSCAN files
-num_iterations = 100
-df_dbscan = []
-for i in range(num_iterations):
-    df_dbscan.append(pd.read_csv(f"C:/Users/yvjennig/Downloads/output_final/output_final/dbscan/"
-                                 f"uncertainty/umap_dbscan_{i}.csv"))
+# load pre-computed DBSCAN file
+iteration = 7
+df_dbscan = pd.read_csv(f"../output_final/dbscan/uncertainty/UMAP_DBSCAN/umap_dbscan_{iteration}.csv")
+df_dbscan = utils.color_code_labels(df_dbscan)
 
 # load data
 df_in = pd.read_csv("../data/df_wide_knn.csv")
@@ -150,7 +210,6 @@ scatter_size = 2
 margin = 5
 
 # init plots
-iteration = 0
 fig_geo, fig_umap = update_geo_and_umap(iteration, hide_noise=True, label_selection=[])
 fig_elbow, labels_above_thresh = update_elbow(iteration, thresh=None)
 
@@ -166,20 +225,19 @@ app.layout = html.Div([
                   clickData={'points': [{'x': None, 'y': None, 'z': None, 'text': None}]}),
         style={'margin': dict(l=margin, r=margin, t=margin, b=margin), 'display': 'inline-block', 'width': '40vw'}
     ),
-    html.Div([
-        html.Div("iteration"),
-        dcc.Slider(min=0, max=99, step=1, value=0, id='iteration-dropdown')
-    ]),
     html.Div(
         dcc.RadioItems(id="selection-state", value='select all',
                        options=['select all', 'select', 'deselect'], labelStyle={'display': 'inline-block'})
     ),
     html.Div([
+        dcc.RadioItems(id="removal-method", value='small clusters',
+                       options=['small clusters', 'small volume clusters', '1-cell sections', 'In-cohesive clusters'],
+                       labelStyle={'display': 'inline-block'}),
         dcc.Graph(id='fig-elbow', figure=fig_elbow, clickData={'points': [{'x': None, 'y': None, 'text': None}]}),
         dcc.RadioItems(id="y-scale", value='log', options=['log', 'linear'], labelStyle={'display': 'inline-block'}),
         html.Button('Clear thresh', id='clear-btn', n_clicks=0),
         html.Button('Automatic thresh', id='auto-btn', n_clicks=0),
-        html.Div("Drop all clusters with less than ... cells.")
+        html.Div("Drop all clusters with less than ... cells.", id="thresh-text")
     ]),
     dcc.Store(id="current", data={"label_selection": [], "umap_clickData": None, "elbow_click": None,
                                   "iteration": iteration, "labels_above_thresh": [], "y_scale": "log", "thresh": None,
@@ -205,16 +263,16 @@ def update_rotation(geo_relayout, umap_relayout):
     Output('fig-umap', 'figure'),
     Output('current', 'data'),
     Output("fig-elbow", "figure"),
-    Input('iteration-dropdown', 'value'),
+    Output("thresh-text", "children"),
     Input('fig-umap', 'clickData'),
     Input('selection-state', 'value'),
     Input('current', 'data'),
     Input("fig-elbow", "clickData"),
     Input("y-scale", "value"),
-    Input("fig-elbow", "figure")
+    Input("fig-elbow", "figure"),
+    Input("removal-method", "value"),
 )
-def update(iteration, umap_click, selection_state, old_params, elbow_click, y_scale, figure_elbow):
-    print(iteration)
+def update(umap_click, selection_state, old_params, elbow_click, y_scale, figure_elbow, removal_method):
     print(f"elbow click: {elbow_click}")
     print(f"umap click: {umap_click}")
     print("old_params", old_params)
@@ -222,7 +280,6 @@ def update(iteration, umap_click, selection_state, old_params, elbow_click, y_sc
     prev_label_selection = old_params["label_selection"]
     prev_umap_clickData = old_params["umap_clickData"]
     prev_elbow_clickData = old_params["elbow_click"]
-    prev_iteration = old_params["iteration"]
     prev_labels_above_thresh = old_params["labels_above_thresh"]
     prev_y_scale = old_params["y_scale"]
     prev_thresh = old_params["thresh"]
@@ -240,12 +297,12 @@ def update(iteration, umap_click, selection_state, old_params, elbow_click, y_sc
         thresh = count
 
         figure_elbow, labels_above_thresh = update_elbow(iteration=iteration, thresh=thresh, label=label,
-                                                         y_scale=y_scale)
+                                                         y_scale=y_scale, removal_method=removal_method)
 
-    # check if iteration or y_scale changed and update elbow plot
-    if iteration != prev_iteration or y_scale != prev_y_scale:
+    # check if y_scale changed and update elbow plot
+    if y_scale != prev_y_scale:
         figure_elbow, labels_above_thresh = update_elbow(iteration=iteration, thresh=thresh, label=label,
-                                                         y_scale=y_scale)
+                                                         y_scale=y_scale, removal_method=removal_method)
 
     new_label_selection = []
     if selection_state == 'select':
@@ -270,11 +327,14 @@ def update(iteration, umap_click, selection_state, old_params, elbow_click, y_sc
 
     print("figures updated")
     print()
-    return figure_geo, figure_umap, new_params, figure_elbow
+
+    return figure_geo, figure_umap, new_params, figure_elbow, f"Drop all clusters with less than {thresh} cells."
 
 
 # run app
 if __name__ == '__main__':
     app.run_server(debug=True, use_reloader=False)
 
-# option automatic thresh
+# @todo clear thresh as functionality
+# @todo automatic thresh as option
+# @todo dropping methods as option
