@@ -1,7 +1,4 @@
-# no traces but data loading
-import dash.exceptions
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output, State
