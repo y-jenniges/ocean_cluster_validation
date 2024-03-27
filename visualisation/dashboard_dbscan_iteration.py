@@ -88,7 +88,7 @@ num_iterations = 100
 df_dbscan = []
 for i in range(num_iterations):
     df_dbscan.append(pd.read_csv(f"C:/Users/yvjennig/Downloads/output_final/output_final/dbscan/"
-                                 f"uncertainty/umap_dbscan_{i}.csv"))
+                                 f"uncertainty/UMAP-DBSCAN/umap_dbscan_{i}.csv"))
 
 # load data
 df_in = pd.read_csv("../data/df_wide_knn.csv")
