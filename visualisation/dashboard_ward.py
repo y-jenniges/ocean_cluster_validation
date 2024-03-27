@@ -1,14 +1,10 @@
-# no traces but data loading
-
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
 import glasbey
-import itertools as it
 
 
 def color_code_labels(df, label_name="label_embedding", color_noise_black=False, drop_noise=False):
