@@ -10,7 +10,7 @@ data_label = "label_embedding"
 # data_label = "label_original"
 
 # heatmap data
-data = pd.read_csv("../data/dbscan_scores_incomplete.csv")
+data = pd.read_csv("../output_final/dbscan_scores.csv")
 groupby_cols = ['clustering_on', 'scores_on', 'eps', 'min_samples']
 data = data.groupby(groupby_cols).mean().drop("iteration", axis=1).reset_index()  # average over iterations
 data = data[(data.clustering_on == data_label.split("_")[1]) & (data.scores_on == data_label.split("_")[1])]  # filter

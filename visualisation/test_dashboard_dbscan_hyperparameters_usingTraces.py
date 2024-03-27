@@ -1,6 +1,6 @@
-# work with traces for each hyperparmater combination (but more than 10 really slows down the application, more than 100 hardly possible)
+# work with traces for each hyperparmater combination
+# (but more than 10 really slows down the application, more than 100 hardly possible)
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
@@ -41,10 +41,10 @@ def hide_all_traces():
 scatter_size = 1.5
 
 # dbscan labels
-labels = pd.read_csv("../data/dbscan_labels.csv")
+labels = pd.read_csv("../output_final/dbscan_labels.csv")
 
 # heatmap data
-data = pd.read_csv("../data/dbscan_scores_incomplete.csv")
+data = pd.read_csv("../output_final/dbscan_scores.csv")
 groupby_cols = ['clustering_on', 'scores_on', 'eps', 'min_samples']
 data = data.groupby(groupby_cols).mean().drop("iteration", axis=1).reset_index()  # average over iterations
 data = data[(data.clustering_on == 'embedding') & (data.scores_on == 'embedding')]  # filter
