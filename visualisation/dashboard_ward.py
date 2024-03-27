@@ -74,11 +74,13 @@ app.layout = html.Div([
                              id='score', labelStyle={'display': 'inline-block', 'marginTop': '5px'}),
               ]),
     html.Div(dcc.Graph(figure=line_score, id='line-score', clickData={'points': [
-                           {'x': cur_n_clusters, 'y': data[data.n_clusters == cur_n_clusters].iloc[0][cur_score], 'pointNumber':  0}]}
+                           {'x': cur_n_clusters,
+                            'y': data[data.n_clusters == cur_n_clusters].iloc[0][cur_score],
+                            'pointNumber':  0}]}
                        ),
              style={'display': 'inline-block', 'width': '49%'}),
     html.Div(dcc.Graph(figure=fig_geo, id='fig-geo'),
-             style={'margin': dict(l=20, r=20, t=20, b=20), "paper_bgcolor": "LightSteelBlue",
+             style={'margin': dict(l=20, r=20, t=20, b=20),  # "paper_bgcolor": "LightSteelBlue",
                     'display': 'inline-block'}),
     html.Div([dcc.Textarea(id="textarea", value="Current parameters: "),
               # dcc.Graph(figure=fig_depth, id="fig-depth"),
@@ -87,7 +89,7 @@ app.layout = html.Div([
              style={'margin': dict(l=20, r=20, t=20, b=20), "width": "49%",
                     "height": "49%", "resize": "none", 'display': 'inline-block'}),
     html.Div(dcc.Graph(figure=fig_umap, id='fig-umap'),
-             style={'margin': dict(l=20, r=20, t=20, b=20), "paper_bgcolor": "LightSteelBlue",
+             style={'margin': dict(l=20, r=20, t=20, b=20),  # "paper_bgcolor": "LightSteelBlue",
                     'display': 'inline-block'}),
 ])
 
@@ -133,10 +135,11 @@ def update_heatmap(score, clickData, figure_geo, figure_umap):
                                                   x=cur_labels.e0, y=cur_labels.e1, z=cur_labels.e2,
                                                   mode='markers',
                                                   marker=dict(size=scatter_size, color=cur_labels.color, opacity=1)))
-        figure_geo.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
-        figure_umap.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
+        figure_geo.update_layout(margin=dict(l=20, r=20, t=20, b=20))  # , paper_bgcolor="LightSteelBlue")
+        figure_umap.update_layout(margin=dict(l=20, r=20, t=20, b=20))  # , paper_bgcolor="LightSteelBlue")
 
-        return 'Current parameters: \nn_clusters = {}\n{} = {}'.format(x, score_map[score], np.round(score_value, 2)), new_line, figure_geo, figure_umap
+        return 'Current parameters: \nn_clusters = {}\n{} = {}'.format(x, score_map[score], np.round(score_value, 2)), \
+               new_line, figure_geo, figure_umap
     else:
         return "", new_line, figure_geo, figure_umap
 

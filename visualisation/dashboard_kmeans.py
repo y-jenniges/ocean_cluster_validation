@@ -1,14 +1,10 @@
-# no traces but data loading
-
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.express as px
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
 import glasbey
-import itertools as it
 
 
 def color_code_labels(df, label_name="label_embedding", color_noise_black=False, drop_noise=False):
@@ -82,7 +78,7 @@ app.layout = html.Div([
                        ),
              style={'display': 'inline-block', 'width': '49%'}),
     html.Div(dcc.Graph(figure=fig_geo, id='fig-geo'),
-             style={'margin': dict(l=20, r=20, t=20, b=20), "paper_bgcolor": "LightSteelBlue",
+             style={'margin': dict(l=20, r=20, t=20, b=20),  # "paper_bgcolor": "LightSteelBlue",
                     'display': 'inline-block'}),
     html.Div(
         dcc.RadioItems(id="selection-state", value='select all',
@@ -96,7 +92,7 @@ app.layout = html.Div([
                     "height": "49%", "resize": "none", 'display': 'inline-block'}),
     html.Div(dcc.Graph(figure=fig_umap, id='fig-umap',
                        clickData={'points': [{'x': None, 'y': None, 'z': None, 'text': None}]}),
-             style={'margin': dict(l=20, r=20, t=20, b=20), "paper_bgcolor": "LightSteelBlue",
+             style={'margin': dict(l=20, r=20, t=20, b=20),  # "paper_bgcolor": "LightSteelBlue",
                     'display': 'inline-block'}),
     dcc.Store(id="current", data={"label_selection": [], "umap_clickData": None}),
 ])
@@ -178,8 +174,8 @@ def update_heatmap(score, clickData, figure_geo, figure_umap, umap_clickData, se
                                                                 'Label: %{text}<extra></extra>',
                                                   text=cur_labels[data_label]
                                                   ))
-        figure_geo.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
-        figure_umap.update_layout(margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue")
+        figure_geo.update_layout(margin=dict(l=20, r=20, t=20, b=20))  # , paper_bgcolor="LightSteelBlue")
+        figure_umap.update_layout(margin=dict(l=20, r=20, t=20, b=20))  # , paper_bgcolor="LightSteelBlue")
 
         return 'Current parameters: \nn_clusters = {}\n{} = {}'.format(x, score_map[score], np.round(score_value, 2)), \
                new_line, figure_geo, figure_umap, \
