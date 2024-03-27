@@ -1,18 +1,11 @@
-# no traces but data loading
-import dash.exceptions
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.express as px
 from dash import Dash, dcc, html
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
 import glasbey
-import itertools as it
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.cluster import DBSCAN
 import umap
-import glob
 
 
 def color_code_labels(df, label_name="label", color_noise_black=False, drop_noise=False):
@@ -34,8 +27,10 @@ def color_code_labels(df, label_name="label", color_noise_black=False, drop_nois
     return temp
 
 
-def update_geo_and_umap(iteration, hide_noise=True, label_selection=[]):
+def update_geo_and_umap(iteration, hide_noise=True, label_selection=None):
     print("update geo and umap", iteration, hide_noise, label_selection)
+    if label_selection is None:
+        label_selection = []
 
     # compute clustering
     df_cur = df_dbscan[iteration]
@@ -87,8 +82,7 @@ def update_geo_and_umap(iteration, hide_noise=True, label_selection=[]):
 num_iterations = 100
 df_dbscan = []
 for i in range(num_iterations):
-    df_dbscan.append(pd.read_csv(f"C:/Users/yvjennig/Downloads/output_final/output_final/dbscan/"
-                                 f"uncertainty/UMAP-DBSCAN/umap_dbscan_{i}.csv"))
+    df_dbscan.append(pd.read_csv(f"../output_final/dbscan/uncertainty/UMAP_DBSCAN/umap_dbscan_{i}.csv"))
 
 # load data
 df_in = pd.read_csv("../data/df_wide_knn.csv")
