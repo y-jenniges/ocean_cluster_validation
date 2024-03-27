@@ -5,9 +5,9 @@ import numpy as np
 import netCDF4
 
 # load data
-df = pd.read_csv("../output_final/dbscan/post_processing/re-assigned_A1_R1.csv")
-# df = pd.read_csv("../output_final/dbscan/post_processing/re-assigned_A1_R2.csv")
-# df = pd.read_csv("../output_final/dbscan/post_processing/re-assigned_A1_R3.csv")
+drop_variant = "A1"  # A2 A3
+assign_variant = "R1"  # R2 R3
+df = pd.read_csv(f"../output_final/dbscan/post_processing/re-assigned_{drop_variant}_{assign_variant}.csv")
 
 # idea: have a smooth plot, not scatter (we can use e.g. this nc file for it along with Basemap)
 # nc = netCDF4.Dataset('../output_final/dbscan/post_processing/regions_A1.nc')
@@ -76,5 +76,5 @@ fig.update_geos(
     lonaxis_range=[round(df.LONGITUDE.min()) - margin, round(df.LONGITUDE.max()) + margin],
     lataxis_range=[round(df.LATITUDE.min()) - margin, round(df.LATITUDE.max()) + margin])
 
-fig.write_html("regions_over_depth.html")
+fig.write_html(f"../output_final/dbscan/post_processing/regions_over_depth_{drop_variant}_{assign_variant}.html")
 fig.show()
