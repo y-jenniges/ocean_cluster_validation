@@ -4,6 +4,8 @@ from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
 
+import utils
+
 
 def update_geo_and_umap(column="label", hide_noise=True, label_selection=None):
     print("update geo and umap", label_selection)
@@ -108,9 +110,20 @@ margin = 5
 # load file to visualise
 # df = pd.read_csv("../output_final/dbscan/uncertainty/UMAP_DBSCAN/umap_dbscan_7.csv")
 # df = utils.color_code_labels(df)
-df = pd.read_csv("../output_final/dbscan/post_processing/re-assigned_A1_R1.csv")
 
+# df = pd.read_csv("../output_final/dbscan/post_processing/re-assigned_A1_R1.csv")
 data_label = "label"
+
+# df = pd.read_csv("../output_final/kmeans_labels.csv")
+# df = df[df.n_clusters == 2].rename(columns={"label_original": "label"})
+# df = df[df.n_clusters == 10].rename(columns={"label_embedding": "label"})
+
+df = pd.read_csv("../output_final/ward_labels.csv")
+# df = df[df.n_clusters == 2].rename(columns={"label_original": "label"})
+df = df[df.n_clusters == 24].rename(columns={"label_embedding": "label"})
+
+df = utils.color_code_labels(df)
+df[["P_TEMPERATURE", "P_SALINITY", "P_OXYGEN", "P_NITRATE", "P_SILICATE", "P_PHOSPHATE"]] = 0
 
 # df = pd.read_csv("../output_final/dbscan/uncertainty/uncertainty.csv")
 # df.uncertainty = round(df.uncertainty)
