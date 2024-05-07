@@ -3,6 +3,7 @@ from mpl_toolkits.basemap import Basemap
 import pandas as pd
 import numpy as np
 import glasbey
+import seaborn as sns
 from kneed import KneeLocator
 from geopy import distance  # geopy can only compute distances at surface
 from sklearn.preprocessing import MinMaxScaler
@@ -111,17 +112,21 @@ def plot_ts(df, figsize=(4, 4), xlim=None, save_as=None):
     smax = temp["abs_salinity"].max() + (0.01 * temp["abs_salinity"].max())
     tmin = temp["cons_temperature"].min() - (0.1 * temp["cons_temperature"].max())
     tmax = temp["cons_temperature"].max() + (0.1 * temp["cons_temperature"].max())
+
+    if xlim:
+        smin = xlim[0] - (0.01 * xlim[0])
+        smax = xlim[1] + (0.01 * xlim[1])
     
     # number of gridcells in the x and y dimensions
     xdim = int(round((smax - smin) / 0.1 + 1, 0))
-    ydim = int(round((tmax - tmin) + 1, 0))
+    ydim = int(round((tmax - tmin) / 0.1 + 1, 0))
     
     # empty grid
     dens = np.zeros((ydim, xdim))
     
     # temperature and salinity vectors
     si = np.linspace(1, xdim - 1, xdim) * 0.1 + smin
-    ti = np.linspace(1, ydim - 1, ydim) + tmin
+    ti = np.linspace(1, ydim - 1, ydim) * 0.1 + tmin
     
     # fill grid with densities
     for j in range(0, int(ydim)):
@@ -135,11 +140,38 @@ def plot_ts(df, figsize=(4, 4), xlim=None, save_as=None):
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
     contours = plt.contour(si, ti, dens, linestyles='dashed', colors='k')
-    plt.clabel(contours, fontsize=12, inline=1, fmt='%1.0f')  # label every second level
+    plt.clabel(contours, fontsize=12, inline=1, fmt='%1.1f')  # label every second level
     ax.scatter(x=temp["abs_salinity"], y=temp["cons_temperature"], s=9, c=temp["color"], alpha=1, marker=".")
     ax.set_xlabel('Absolute salinity [g/kg]')
     ax.set_ylabel('Conservative temperature [°C]')
     ax.set_xlim(xlim)
+    plt.tight_layout()
+    if save_as:
+        plt.savefig(save_as)
+    plt.show()
+
+
+def compare_stats(df, labels, save_as=None):
+    """ Compare per-parameter-statistics of multiple labels of a clustering. """
+    vars = np.sort(['P_TEMPERATURE', 'P_SALINITY', 'P_OXYGEN', 'P_NITRATE', 'P_SILICATE', 'P_PHOSPHATE'])
+    
+    temp = df[df.label.isin(labels)]  # filter for our two interesting regions
+    scaler = MinMaxScaler().fit(temp[vars])  # define scaler for the regions
+    temp_s = pd.DataFrame(scaler.transform(temp[vars]), columns=vars, index=temp.index)  # scale data for comparability
+    temp_s["label"] = temp["label"]  # adding label information
+    temp_m = pd.melt(temp_s, id_vars=["label"], value_vars=vars)  # wide to long format
+    temp_m.variable = temp_m.variable.map({"P_TEMPERATURE": "Temperature", "P_SALINITY": "Salinity", "P_OXYGEN": "Oxygen", "P_NITRATE": "Nitrate", "P_SILICATE": "Silicate", "P_PHOSPHATE": "Phosphate"})  # renaming
+
+    # define colors according to original ones
+    my_pal = {}
+    for label in labels:
+        my_pal[label] = df[df.label == label].iloc[0].color
+        
+    # plot
+    bp = sns.boxplot(temp_m, x="variable", y="value", hue="label", palette=my_pal, flierprops={"marker": "."})
+    sns.move_legend(bp, "upper left")
+    plt.xlabel("")
+    plt.ylabel("Scaled value")
     plt.tight_layout()
     if save_as:
         plt.savefig(save_as)
