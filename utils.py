@@ -52,8 +52,10 @@ def plot_embedding(embedding, color_label=None, alpha=0.08, size=2, save_as=None
     plt.show()
 
 
-def coupled_label_plot(df, color_label="color", save_dir=None, suffix="", umap_plot=True):
+def coupled_label_plot(df, color_label="color", save_dir=None, suffix="", umap_plot=True, save_as=None):
     """ Plots cluster labels in geographical and embedded space. """
+    if save_as is None:
+        save_as = ["labels_in_geospace", "labels_in_umapspace"]
     temp = df.copy()
 
     # define basemap
@@ -68,14 +70,14 @@ def coupled_label_plot(df, color_label="color", save_dir=None, suffix="", umap_p
     ax.set_box_aspect((np.ptp(temp["LONGITUDE"]), np.ptp(temp["LATITUDE"]), np.ptp(temp["LEV_M"])/50))
     plt.gca().invert_zaxis()
     plt.tight_layout()
-    if save_dir:
-        plt.savefig(save_dir + f"labels_in_geospace{suffix}.png")
+    if save_dir is not None:
+        plt.savefig(save_dir + save_as[0] + suffix + ".png")
     plt.show()
 
     # UMAP plot
     if umap_plot:
-        save_as = save_dir + f"labels_in_umapspace{suffix}.png" if save_dir is not None else None
-        plot_embedding(temp, color_label=color_label, alpha=1, save_as=save_as)
+        filename = save_dir + save_as[1] + suffix + ".png" if save_dir is not None else None
+        plot_embedding(temp, color_label=color_label, alpha=1, save_as=filename)
 
 
 def color_code_labels(df, color_noise_black=False, drop_noise=False, column_name="label"):
@@ -151,24 +153,33 @@ def plot_ts(df, figsize=(4, 4), xlim=None, save_as=None):
     plt.show()
 
 
-def compare_stats(df, labels, save_as=None):
+def compare_stats(df, labels, vars=None, vars_map=None, save_as=None, sort_labels=True):
     """ Compare per-parameter-statistics of multiple labels of a clustering. """
-    vars = np.sort(['P_TEMPERATURE', 'P_SALINITY', 'P_OXYGEN', 'P_NITRATE', 'P_SILICATE', 'P_PHOSPHATE'])
+    if not vars:
+        vars = np.sort(['P_TEMPERATURE', 'P_SALINITY', 'P_OXYGEN', 'P_NITRATE', 'P_SILICATE', 'P_PHOSPHATE'])
+        vars_map = {"P_TEMPERATURE": "Temperature", "P_SALINITY": "Salinity", "P_OXYGEN": "Oxygen",
+                    "P_NITRATE": "Nitrate", "P_SILICATE": "Silicate", "P_PHOSPHATE": "Phosphate"}
     
     temp = df[df.label.isin(labels)]  # filter for our two interesting regions
     scaler = MinMaxScaler().fit(temp[vars])  # define scaler for the regions
     temp_s = pd.DataFrame(scaler.transform(temp[vars]), columns=vars, index=temp.index)  # scale data for comparability
     temp_s["label"] = temp["label"]  # adding label information
     temp_m = pd.melt(temp_s, id_vars=["label"], value_vars=vars)  # wide to long format
-    temp_m.variable = temp_m.variable.map({"P_TEMPERATURE": "Temperature", "P_SALINITY": "Salinity", "P_OXYGEN": "Oxygen", "P_NITRATE": "Nitrate", "P_SILICATE": "Silicate", "P_PHOSPHATE": "Phosphate"})  # renaming
+    if vars_map:
+        temp_m.variable = temp_m.variable.map(vars_map)  # renaming
 
     # define colors according to original ones
     my_pal = {}
     for label in labels:
         my_pal[label] = df[df.label == label].iloc[0].color
+
+    # define sequence of labels
+    if sort_labels:
+        labels = np.sort(labels)
         
     # plot
-    bp = sns.boxplot(temp_m, x="variable", y="value", hue="label", palette=my_pal, flierprops={"marker": "."})
+    bp = sns.boxplot(temp_m, x="variable", y="value", hue="label", palette=my_pal, flierprops={"marker": "."},
+                     hue_order=labels)
     sns.move_legend(bp, "upper left")
     plt.xlabel("")
     plt.ylabel("Scaled value")
